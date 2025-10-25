@@ -1,0 +1,167 @@
+############################################################ 
+# 🏠 MELBOURNE HOUSING MARKET ANALYSIS — R PROJECT
+# Author: Rohan Sawant
+# Description: End-to-end data analysis on the Melbourne Housing dataset.
+# The project includes data loading, cleaning, transformation,
+# aggregation, and visualization using R.
+############################################################
+
+# ==========================================================
+# 0️⃣ LOAD NECESSARY LIBRARIES
+# ==========================================================
+library(dplyr)       # Data manipulation
+library(tidyr)       # Data cleaning
+library(lubridate)   # Date parsing and feature extraction
+library(ggplot2)     # Data visualization
+library(scales)      # Formatting numbers in plots
+
+# ==========================================================
+# 1️⃣ READ AND WRITE DATA FILES
+# ==========================================================
+melb_data <- read.csv("C:/Rohan/R-Programming-for-Data-Analysts-main/Datasets/melb_data.csv")
+
+# Preview dataset
+head(melb_data)
+str(melb_data)
+summary(melb_data)
+
+# Save a copy for future use
+write.csv(melb_data, 
+          "C:/Rohan/R-Programming-for-Data-Analysts-main/Datasets/melb_data_output.csv", 
+          row.names = FALSE)
+
+# ==========================================================
+# 2️⃣ SELECT, ORDER, AND FILTER DATA
+# ==========================================================
+selected_data <- melb_data %>%
+  select(Suburb, Price, Rooms, Bathroom, Date, Distance, Type)
+
+ordered_data <- melb_data %>%
+  arrange(desc(Price))
+
+filtered_data <- melb_data %>%
+  filter(Price > 1000000)
+
+# ==========================================================
+# 3️⃣ GROUPING AND AGGREGATING
+# ==========================================================
+avg_price_by_suburb <- melb_data %>%
+  group_by(Suburb) %>%
+  summarise(Average_Price = mean(Price, na.rm = TRUE))
+
+total_properties_by_type <- melb_data %>%
+  group_by(Type) %>%
+  summarise(Total_Properties = sum(Propertycount, na.rm = TRUE))
+
+median_rooms_by_suburb <- melb_data %>%
+  group_by(Suburb) %>%
+  summarise(Median_Rooms = median(Rooms, na.rm = TRUE))
+
+# ==========================================================
+# 4️⃣ DATA CLEANING
+# ==========================================================
+melb_clean <- melb_data
+
+# Fill missing numeric values with median
+melb_clean$Bedroom2[is.na(melb_clean$Bedroom2)] <- median(melb_clean$Bedroom2, na.rm = TRUE)
+melb_clean$Bathroom[is.na(melb_clean$Bathroom)] <- median(melb_clean$Bathroom, na.rm = TRUE)
+melb_clean$Distance[is.na(melb_clean$Distance)] <- median(melb_clean$Distance, na.rm = TRUE)
+
+# Standardize text columns
+melb_clean$Suburb <- tolower(trimws(melb_clean$Suburb))
+melb_clean$Type <- tolower(trimws(melb_clean$Type))
+
+# Replace unrealistic prices
+melb_clean$Price[melb_clean$Price <= 0] <- median(melb_clean$Price, na.rm = TRUE)
+
+# Fill other missing values
+melb_clean$Car[is.na(melb_clean$Car)] <- 0
+melb_clean$BuildingArea[is.na(melb_clean$BuildingArea)] <- NA
+melb_clean$YearBuilt[is.na(melb_clean$YearBuilt)] <- "Unknown"
+
+# Check remaining missing values
+colSums(is.na(melb_clean))
+
+# ==========================================================
+# 5️⃣ CONVERTING AND PARSING DATES
+# ==========================================================
+melb_clean$Date <- parse_date_time(melb_clean$Date, orders = c("d/m/Y"))
+
+melb_clean$Year <- year(melb_clean$Date)
+melb_clean$Month <- month(melb_clean$Date)
+melb_clean$Day <- day(melb_clean$Date)
+melb_clean$Days_Since_Sale <- as.numeric(Sys.Date() - melb_clean$Date)
+
+sales_2017 <- melb_clean %>%
+  filter(year(Date) == 2017)
+
+# ==========================================================
+# 6️⃣ REMOVING DUPLICATES
+# ==========================================================
+melb_unique <- melb_clean %>%
+  distinct()
+
+melb_unique_address <- melb_clean %>%
+  distinct(Address, .keep_all = TRUE)
+
+melb_arranged <- melb_clean %>%
+  arrange(Suburb, desc(Price))
+
+# ==========================================================
+# 7️⃣ DATA VISUALIZATION AND PRESENTATION
+# ==========================================================
+# 1️⃣ Box Plot: Price by Property Type
+ggplot(melb_clean, aes(x = Type, y = Price)) +
+  geom_boxplot(fill = "lightblue", color = "darkblue") +
+  labs(title = "Price by Property Type", x = "Property Type", y = "Price") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# 2️⃣ Scatter Plot: Rooms vs Price
+ggplot(melb_clean, aes(x = Rooms, y = Price, color = Type)) +
+  geom_point(alpha = 0.6) +
+  labs(title = "Rooms vs Price by Property Type", 
+       x = "Number of Rooms", 
+       y = "Price") +
+  theme_light()
+
+# 3️⃣ Histogram: Price distribution
+ggplot(melb_clean, aes(x = Price)) +
+  geom_histogram(binwidth = 50000, fill = "steelblue", color = "white") +
+  labs(title = "Price Distribution", x = "Price", y = "Count") +
+  scale_x_continuous(labels = scales::comma) +
+  theme_bw()
+
+# 4️⃣ Bar Chart: Average Price by Rooms
+avg_price_by_rooms <- melb_clean %>%
+  group_by(Rooms) %>%
+  summarise(Avg_Price = mean(Price, na.rm = TRUE), .groups = "drop")
+
+ggplot(avg_price_by_rooms, aes(x = factor(Rooms), y = Avg_Price)) +
+  geom_col(fill = "orange") +
+  geom_text(aes(label = scales::comma(round(Avg_Price, 0))), 
+            vjust = -0.3, size = 2.5) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(title = "Average Price by Number of Rooms", 
+       x = "Number of Rooms", 
+       y = "Average Price") +
+  theme_classic()
+
+# 5️⃣ Line Chart: Average Price Trend Over Years
+avg_price_by_year <- melb_clean %>%
+  group_by(Year) %>%
+  summarise(Avg_Price = mean(Price, na.rm = TRUE), .groups = "drop")
+
+ggplot(avg_price_by_year, aes(x = Year, y = Avg_Price)) +
+  geom_line(size = 1, color = "darkgreen") +
+  geom_point(size = 2, color = "darkred") +
+  labs(title = "Average Price Trend Over Years", 
+       x = "Year", 
+       y = "Average Price") +
+  scale_y_continuous(labels = scales::comma) +
+  theme_minimal()
+
+############################################################
+# ✅ END OF PROJECT
+# Complete Melbourne Housing Market Analysis using R
+############################################################
